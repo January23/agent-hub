@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import type { Agent, CreateAgentDto, UpdateAgentDto } from './agents.types';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Agent } from './agent.entity';
+import type { CreateAgentDto, UpdateAgentDto } from './agents.types';
 
 const defaultModel = (): Agent['model'] => ({
   provider: 'openai-compatible',
@@ -10,14 +12,17 @@ const defaultModel = (): Agent['model'] => ({
 
 @Injectable()
 export class AgentsService implements OnModuleInit {
-  private readonly items = new Map<string, Agent>();
+  constructor(
+    @InjectRepository(Agent)
+    private readonly agentRepository: Repository<Agent>,
+  ) {}
 
-  onModuleInit(): void {
-    if (this.items.size > 0) return;
+  async onModuleInit(): Promise<void> {
+    const count = await this.agentRepository.count();
+    if (count > 0) return;
+
     const now = new Date().toISOString();
-    const id = randomUUID();
-    const agent: Agent = {
-      id,
+    const agent = this.agentRepository.create({
       name: '示例 Agent（已上架）',
       description: '演示用，已发布到市场；可删除或修改。',
       prompt: '你是企业内部助手，回答简洁、可执行。',
@@ -29,26 +34,25 @@ export class AgentsService implements OnModuleInit {
       published: true,
       publishedAt: now,
       ownerSubject: null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.items.set(id, agent);
+    });
+    await this.agentRepository.save(agent);
   }
 
-  list(): Agent[] {
-    return [...this.items.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+  async list(): Promise<Agent[]> {
+    return this.agentRepository.find({
+      order: { updatedAt: 'DESC' },
+    });
   }
 
-  get(id: string): Agent | undefined {
-    return this.items.get(id);
+  async get(id: string): Promise<Agent | null> {
+    return this.agentRepository.findOneBy({ id });
   }
 
-  create(dto: CreateAgentDto, ownerSubject: string | null): Agent {
-    const now = new Date().toISOString();
-    const agent: Agent = {
-      id: randomUUID(),
+  async create(
+    dto: CreateAgentDto,
+    ownerSubject: string | null,
+  ): Promise<Agent> {
+    const agent = this.agentRepository.create({
       name: dto.name,
       description: dto.description ?? '',
       prompt: dto.prompt ?? '',
@@ -60,20 +64,17 @@ export class AgentsService implements OnModuleInit {
       published: false,
       publishedAt: null,
       ownerSubject,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.items.set(agent.id, agent);
-    return agent;
+    });
+    return this.agentRepository.save(agent);
   }
 
-  update(id: string, dto: UpdateAgentDto): Agent {
-    const cur = this.items.get(id);
+  async update(id: string, dto: UpdateAgentDto): Promise<Agent> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`Agent ${id} not found`);
     }
-    const next: Agent = {
-      ...cur,
+
+    Object.assign(cur, {
       name: dto.name ?? cur.name,
       description: dto.description ?? cur.description,
       prompt: dto.prompt ?? cur.prompt,
@@ -82,47 +83,41 @@ export class AgentsService implements OnModuleInit {
       knowledgeBaseIds: dto.knowledgeBaseIds ?? cur.knowledgeBaseIds,
       linkedAgentIds: dto.linkedAgentIds ?? cur.linkedAgentIds,
       model: dto.model ? { ...cur.model, ...dto.model } : cur.model,
-      updatedAt: new Date().toISOString(),
-    };
-    this.items.set(id, next);
-    return next;
+    });
+
+    return this.agentRepository.save(cur);
   }
 
-  remove(id: string): void {
-    if (!this.items.has(id)) {
+  async remove(id: string): Promise<void> {
+    const result = await this.agentRepository.delete(id);
+    if (result.affected === 0) {
       throw new NotFoundException(`Agent ${id} not found`);
     }
-    this.items.delete(id);
   }
 
-  publish(id: string): Agent {
-    const cur = this.items.get(id);
+  async publish(id: string): Promise<Agent> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`Agent ${id} not found`);
     }
-    const now = new Date().toISOString();
-    const next: Agent = {
-      ...cur,
-      published: true,
-      publishedAt: cur.publishedAt ?? now,
-      updatedAt: now,
-    };
-    this.items.set(id, next);
-    return next;
+
+    cur.published = true;
+    if (!cur.publishedAt) {
+      cur.publishedAt = new Date().toISOString();
+    }
+
+    return this.agentRepository.save(cur);
   }
 
-  unpublish(id: string): Agent {
-    const cur = this.items.get(id);
+  async unpublish(id: string): Promise<Agent> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`Agent ${id} not found`);
     }
-    const next: Agent = {
-      ...cur,
-      published: false,
-      publishedAt: null,
-      updatedAt: new Date().toISOString(),
-    };
-    this.items.set(id, next);
-    return next;
+
+    cur.published = false;
+    cur.publishedAt = null;
+
+    return this.agentRepository.save(cur);
   }
 }

@@ -3,7 +3,7 @@
 import { PlusOutlined } from "@ant-design/icons";
 import { App, Button, Drawer, Form, Input, Popconfirm, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiBase } from "@/lib/api";
 
 type Row = {
@@ -21,6 +21,17 @@ export default function KnowledgeBasesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [form] = Form.useForm();
+
+  // Reset/set form values when drawer opens (Form is mounted)
+  useEffect(() => {
+    if (open) {
+      if (editing) {
+        form.setFieldsValue(editing);
+      } else {
+        form.resetFields();
+      }
+    }
+  }, [open, editing, form]);
 
   const load = useCallback(async () => {
     const res = await fetch(`${getApiBase()}/knowledge-bases`);
@@ -43,13 +54,11 @@ export default function KnowledgeBasesPage() {
 
   function openCreate() {
     setEditing(null);
-    form.resetFields();
     setOpen(true);
   }
 
   function openEdit(row: Row) {
     setEditing(row);
-    form.setFieldsValue(row);
     setOpen(true);
   }
 
@@ -126,7 +135,7 @@ export default function KnowledgeBasesPage() {
       <Table<Row> rowKey="id" loading={loading} columns={columns} dataSource={rows} />
       <Drawer
         title={editing ? "编辑知识库" : "新建知识库"}
-        width={520}
+        size="large"
         open={open}
         onClose={() => setOpen(false)}
         extra={

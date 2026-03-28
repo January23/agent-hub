@@ -51,16 +51,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           const ag = (await ra.json()) as AgentDTO;
           if (!cancelled) {
             setAgent(ag);
-            form.setFieldsValue({
-              name: ag.name,
-              description: ag.description,
-              prompt: ag.prompt,
-              skillIds: ag.skillIds,
-              mcpConfigIds: ag.mcpConfigIds,
-              knowledgeBaseIds: ag.knowledgeBaseIds,
-              linkedAgentIds: ag.linkedAgentIds,
-              model: ag.model,
-            });
           }
         }
       } catch (e) {
@@ -74,7 +64,23 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     return () => {
       cancelled = true;
     };
-  }, [agentId, form, message, mode]);
+  }, [agentId, message, mode]);
+
+  // Set form values after Form is mounted (bootLoading becomes false)
+  useEffect(() => {
+    if (!bootLoading && agent) {
+      form.setFieldsValue({
+        name: agent.name,
+        description: agent.description,
+        prompt: agent.prompt,
+        skillIds: agent.skillIds,
+        mcpConfigIds: agent.mcpConfigIds,
+        knowledgeBaseIds: agent.knowledgeBaseIds,
+        linkedAgentIds: agent.linkedAgentIds,
+        model: agent.model,
+      });
+    }
+  }, [bootLoading, agent, form]);
 
   const skillOptions = useMemo(
     () => catalog?.skills.map((s) => ({ label: s.name, value: s.id })) ?? [],
@@ -200,7 +206,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           mcpConfigIds: [],
           knowledgeBaseIds: [],
           linkedAgentIds: [],
-          model: { provider: "openai-compatible", model: "gpt-4o-mini", temperature: 0.2 },
+          model: { provider: "openai-compatible", model: "gpt-4o-mini", temperature: 0.2, apiKey: "", baseUrl: "" },
           prompt: "你是企业内部助手。",
         }}
       >
@@ -265,6 +271,12 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         </Form.Item>
         <Form.Item name={["model", "temperature"]} label="温度">
           <InputNumber min={0} max={2} step={0.1} style={{ width: "100%" }} />
+        </Form.Item>
+        <Form.Item name={["model", "apiKey"]} label="API Key">
+          <Input.Password placeholder="留空则使用全局配置" />
+        </Form.Item>
+        <Form.Item name={["model", "baseUrl"]} label="API 地址">
+          <Input placeholder="如 https://api.openai.com/v1，留空则使用全局配置" />
         </Form.Item>
 
         <Space wrap>

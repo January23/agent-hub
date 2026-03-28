@@ -2,6 +2,8 @@ export type AgentModelConfig = {
   provider: string;
   model: string;
   temperature?: number;
+  apiKey?: string;
+  baseUrl?: string;
 };
 
 export type Agent = {

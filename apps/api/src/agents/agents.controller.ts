@@ -20,13 +20,13 @@ export class AgentsController {
   constructor(private readonly agents: AgentsService) {}
 
   @Get()
-  list() {
+  async list() {
     return this.agents.list();
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    const item = this.agents.get(id);
+  async get(@Param('id') id: string) {
+    const item = await this.agents.get(id);
     if (!item) {
       throw new NotFoundException(`Agent ${id} not found`);
     }
@@ -34,7 +34,7 @@ export class AgentsController {
   }
 
   @Post()
-  create(
+  async create(
     @Body() body: CreateAgentDto,
     @RequestIdentity() identity: RequestIdentityPayload,
   ) {
@@ -42,24 +42,24 @@ export class AgentsController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: UpdateAgentDto) {
+  async update(@Param('id') id: string, @Body() body: UpdateAgentDto) {
     return this.agents.update(id, body);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    this.agents.remove(id);
+  async remove(@Param('id') id: string) {
+    await this.agents.remove(id);
     return { ok: true as const };
   }
 
   /** 发布后，市场可检索；TODO：非 owner 访问需申请权限 */
   @Post(':id/publish')
-  publish(@Param('id') id: string) {
+  async publish(@Param('id') id: string) {
     return this.agents.publish(id);
   }
 
   @Post(':id/unpublish')
-  unpublish(@Param('id') id: string) {
+  async unpublish(@Param('id') id: string) {
     return this.agents.unpublish(id);
   }
 }

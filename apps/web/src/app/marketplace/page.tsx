@@ -66,7 +66,7 @@ export default function MarketplacePage() {
       <Typography.Title level={4} style={{ marginTop: 0 }}>
         市场
       </Typography.Title>
-      <Space direction="vertical" style={{ width: "100%", marginBottom: 16 }} size="middle">
+      <Space orientation="vertical" style={{ width: "100%", marginBottom: 16 }} size="middle">
         <Input
           allowClear
           size="large"

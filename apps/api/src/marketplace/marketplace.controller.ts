@@ -10,7 +10,7 @@ export class MarketplaceController {
   constructor(private readonly marketplace: MarketplaceService) {}
 
   @Get('agents')
-  search(
+  async search(
     @Query('q') q: string | undefined,
     @RequestIdentity() identity: RequestIdentityPayload,
   ) {

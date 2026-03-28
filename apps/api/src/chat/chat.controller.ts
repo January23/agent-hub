@@ -1,5 +1,6 @@
 import { Body, Controller, Param, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import OpenAI from 'openai';
 import { AgentsService } from '../agents/agents.service';
 import type { ChatStreamBody } from './chat.types';
 
@@ -12,16 +13,16 @@ export class ChatController {
   constructor(private readonly agents: AgentsService) {}
 
   /**
-   * SSE 流式占位：未接真实大模型。
-   * TODO: 接入 LLM streaming；TODO: 按 viewer + agentId 限流。
+   * SSE 流式对话接口，使用用户配置的大模型
+   * TODO: 按 viewer + agentId 限流。
    */
   @Post(':agentId/stream')
-  stream(
+  async stream(
     @Param('agentId') agentId: string,
     @Body() body: ChatStreamBody,
     @Res({ passthrough: false }) res: Response,
-  ): void {
-    const agent = this.agents.get(agentId);
+  ): Promise<void> {
+    const agent = await this.agents.get(agentId);
     if (!agent) {
       res.status(404).json({ message: `Agent ${agentId} not found` });
       return;
@@ -40,20 +41,50 @@ export class ChatController {
       model: agent.model,
     });
 
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    const prefix =
-      mode === 'debug'
-        ? '[调试] 使用 Agent 配置预览（未接 LLM）。\n系统提示摘要：'
-        : '（生产占位）';
-    const summary = agent.prompt.slice(0, 160);
-    const echo = lastUser?.content ?? '';
-    const text = `${prefix}\n${summary}${echo ? `\n\n用户：${echo}` : ''}\n\n回复：这是流式占位输出，后续替换为真实模型 token。`;
+    try {
+      const apiKey = agent.model.apiKey;
+      const baseURL = agent.model.baseUrl;
 
-    for (const ch of text) {
-      sseWrite(res, 'token', { text: ch });
+      if (!baseURL) {
+        throw new Error('请配置大模型 API 地址');
+      }
+
+      const openai = new OpenAI({
+        apiKey,
+        baseURL,
+        timeout: 120000,
+      });
+
+      console.log(`[LLM Request] Agent: ${agent.name} (${agent.id}), Provider: ${agent.model.provider}, Model: ${agent.model.model}, Messages:`, messages);
+      
+      const stream = await openai.chat.completions.create({
+        model: agent.model.model,
+        temperature: agent.model.temperature ?? 0.2,
+        messages: [
+          { role: 'system', content: agent.prompt },
+          ...messages,
+        ],
+        stream: true
+      });
+
+      let fullResponse = '';
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content || '';
+        if (text) {
+          fullResponse += text;
+          sseWrite(res, 'token', { text });
+        }
+      }
+
+      console.log(`[LLM Response] Agent: ${agent.name} (${agent.id}), Full Output:\n${fullResponse}\n`);
+    } catch (error) {
+      console.error(`[LLM Error] Agent: ${agent.name} (${agent.id}), Error:`, error);
+      sseWrite(res, 'error', {
+        message: error instanceof Error ? error.message : '调用大模型失败',
+      });
+    } finally {
+      sseWrite(res, 'done', {});
+      res.end();
     }
-
-    sseWrite(res, 'done', {});
-    res.end();
   }
 }

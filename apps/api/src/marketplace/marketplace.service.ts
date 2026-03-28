@@ -7,13 +7,14 @@ import type { MarketplaceAgentSummary } from './marketplace.types';
 export class MarketplaceService {
   constructor(private readonly agents: AgentsService) {}
 
-  search(
+  async search(
     query: string | undefined,
     viewer: RequestIdentityPayload,
-  ): MarketplaceAgentSummary[] {
+  ): Promise<MarketplaceAgentSummary[]> {
     const q = query?.trim().toLowerCase() ?? '';
-    return this.agents
-      .list()
+    const agents = await this.agents.list();
+    
+    return agents
       .filter((a) => a.published)
       .filter(
         (a) =>

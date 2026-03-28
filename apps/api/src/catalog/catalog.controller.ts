@@ -15,20 +15,19 @@ export class CatalogController {
 
   /** 前端「Agent 配置」页一次拉齐下拉选项 */
   @Get('agent-editor')
-  agentEditor() {
+  async agentEditor() {
+    const [skills, mcpConfigs, knowledgeBases, agents] = await Promise.all([
+      this.skills.list(),
+      this.mcp.list(),
+      this.kb.list(),
+      this.agents.list(),
+    ]);
+    
     return {
-      skills: this.skills
-        .list()
-        .map((s) => ({ id: s.id, name: s.name, description: s.description })),
-      mcpConfigs: this.mcp
-        .list()
-        .map((m) => ({ id: m.id, name: m.name, description: m.description })),
-      knowledgeBases: this.kb
-        .list()
-        .map((k) => ({ id: k.id, name: k.name, description: k.description })),
-      agents: this.agents
-        .list()
-        .map((a) => ({ id: a.id, name: a.name, published: a.published })),
+      skills: skills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+      mcpConfigs: mcpConfigs.map((m) => ({ id: m.id, name: m.name, description: m.description })),
+      knowledgeBases: knowledgeBases.map((k) => ({ id: k.id, name: k.name, description: k.description })),
+      agents: agents.map((a) => ({ id: a.id, name: a.name, published: a.published })),
     };
   }
 }
