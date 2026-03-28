@@ -1,0 +1,15 @@
+{
+  "name": "agent-hub",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @agent-hub/web --filter @agent-hub/api dev",
+    "dev:web": "pnpm --filter @agent-hub/web dev",
+    "dev:api": "pnpm --filter @agent-hub/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
