@@ -22,12 +22,28 @@ export class CatalogController {
       this.kb.list(),
       this.agents.list(),
     ]);
-    
+
     return {
-      skills: skills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
-      mcpConfigs: mcpConfigs.map((m) => ({ id: m.id, name: m.name, description: m.description })),
-      knowledgeBases: knowledgeBases.map((k) => ({ id: k.id, name: k.name, description: k.description })),
-      agents: agents.map((a) => ({ id: a.id, name: a.name, published: a.published })),
+      skills: skills.map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+      })),
+      mcpConfigs: mcpConfigs.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description,
+      })),
+      knowledgeBases: knowledgeBases.map((k) => ({
+        id: k.id,
+        name: k.name,
+        description: k.description,
+      })),
+      agents: agents.map((a) => ({
+        id: a.id,
+        name: a.name,
+        published: a.published,
+      })),
     };
   }
 }

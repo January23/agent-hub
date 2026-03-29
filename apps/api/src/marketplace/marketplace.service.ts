@@ -13,7 +13,7 @@ export class MarketplaceService {
   ): Promise<MarketplaceAgentSummary[]> {
     const q = query?.trim().toLowerCase() ?? '';
     const agents = await this.agents.list();
-    
+
     return agents
       .filter((a) => a.published)
       .filter(

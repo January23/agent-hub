@@ -1,66 +1,69 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeBase,
   UpdateKnowledgeBaseDto,
 } from './knowledge-bases.types';
+import { KnowledgeBaseEntity } from './knowledge-base.entity';
 
 @Injectable()
 export class KnowledgeBasesService implements OnModuleInit {
-  private readonly items = new Map<string, KnowledgeBase>();
+  constructor(
+    @InjectRepository(KnowledgeBaseEntity)
+    private readonly knowledgeBaseRepository: Repository<KnowledgeBaseEntity>,
+  ) {}
 
-  onModuleInit(): void {
-    if (this.items.size > 0) return;
-    this.create({
+  async onModuleInit(): Promise<void> {
+    const count = await this.knowledgeBaseRepository.count();
+    if (count > 0) return;
+    await this.create({
       name: '示例知识库',
       description: '占位',
       storageHint: 's3://bucket/prefix 或 pgvector 集合名',
     });
   }
 
-  list(): KnowledgeBase[] {
-    return [...this.items.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+  async list(): Promise<KnowledgeBase[]> {
+    return this.knowledgeBaseRepository.find({
+      order: { updatedAt: 'DESC' },
+    });
   }
 
-  get(id: string): KnowledgeBase | undefined {
-    return this.items.get(id);
+  async get(id: string): Promise<KnowledgeBase | undefined> {
+    const kb = await this.knowledgeBaseRepository.findOneBy({ id });
+    return kb ?? undefined;
   }
 
-  create(dto: CreateKnowledgeBaseDto): KnowledgeBase {
-    const now = new Date().toISOString();
-    const row: KnowledgeBase = {
-      id: randomUUID(),
+  async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const kb = this.knowledgeBaseRepository.create({
       name: dto.name,
       description: dto.description ?? '',
       storageHint: dto.storageHint ?? '',
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.items.set(row.id, row);
-    return row;
+    });
+    return this.knowledgeBaseRepository.save(kb);
   }
 
-  update(id: string, dto: UpdateKnowledgeBaseDto): KnowledgeBase {
-    const cur = this.items.get(id);
+  async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`Knowledge base ${id} not found`);
     }
-    const next: KnowledgeBase = {
-      ...cur,
-      ...dto,
-      updatedAt: new Date().toISOString(),
-    };
-    this.items.set(id, next);
-    return next;
+
+    Object.assign(cur, {
+      name: dto.name ?? cur.name,
+      description: dto.description ?? cur.description,
+      storageHint: dto.storageHint ?? cur.storageHint,
+    });
+
+    return this.knowledgeBaseRepository.save(cur);
   }
 
-  remove(id: string): void {
-    if (!this.items.has(id)) {
+  async remove(id: string): Promise<void> {
+    const result = await this.knowledgeBaseRepository.delete(id);
+    if (result.affected === 0) {
       throw new NotFoundException(`Knowledge base ${id} not found`);
     }
-    this.items.delete(id);
   }
 }

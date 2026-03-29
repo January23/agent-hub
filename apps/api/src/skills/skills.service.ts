@@ -1,62 +1,65 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import type { CreateSkillDto, Skill, UpdateSkillDto } from './skills.types';
+import { SkillEntity } from './skill.entity';
 
 @Injectable()
 export class SkillsService implements OnModuleInit {
-  private readonly items = new Map<string, Skill>();
+  constructor(
+    @InjectRepository(SkillEntity)
+    private readonly skillRepository: Repository<SkillEntity>,
+  ) {}
 
-  onModuleInit(): void {
-    if (this.items.size > 0) return;
-    this.create({
+  async onModuleInit(): Promise<void> {
+    const count = await this.skillRepository.count();
+    if (count > 0) return;
+    await this.create({
       name: '示例 Skill',
       description: '占位数据，可删除',
       definition: '在此填写技能说明或工具清单。',
     });
   }
 
-  list(): Skill[] {
-    return [...this.items.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+  async list(): Promise<Skill[]> {
+    return this.skillRepository.find({
+      order: { updatedAt: 'DESC' },
+    });
   }
 
-  get(id: string): Skill | undefined {
-    return this.items.get(id);
+  async get(id: string): Promise<Skill | undefined> {
+    const skill = await this.skillRepository.findOneBy({ id });
+    return skill ?? undefined;
   }
 
-  create(dto: CreateSkillDto): Skill {
-    const now = new Date().toISOString();
-    const skill: Skill = {
-      id: randomUUID(),
+  async create(dto: CreateSkillDto): Promise<Skill> {
+    const skill = this.skillRepository.create({
       name: dto.name,
       description: dto.description ?? '',
       definition: dto.definition ?? '',
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.items.set(skill.id, skill);
-    return skill;
+    });
+    return this.skillRepository.save(skill);
   }
 
-  update(id: string, dto: UpdateSkillDto): Skill {
-    const cur = this.items.get(id);
+  async update(id: string, dto: UpdateSkillDto): Promise<Skill> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`Skill ${id} not found`);
     }
-    const next: Skill = {
-      ...cur,
-      ...dto,
-      updatedAt: new Date().toISOString(),
-    };
-    this.items.set(id, next);
-    return next;
+
+    Object.assign(cur, {
+      name: dto.name ?? cur.name,
+      description: dto.description ?? cur.description,
+      definition: dto.definition ?? cur.definition,
+    });
+
+    return this.skillRepository.save(cur);
   }
 
-  remove(id: string): void {
-    if (!this.items.has(id)) {
+  async remove(id: string): Promise<void> {
+    const result = await this.skillRepository.delete(id);
+    if (result.affected === 0) {
       throw new NotFoundException(`Skill ${id} not found`);
     }
-    this.items.delete(id);
   }
 }

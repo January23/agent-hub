@@ -1,66 +1,69 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import type {
   CreateMcpConfigDto,
   McpConfig,
   UpdateMcpConfigDto,
 } from './mcp-configs.types';
+import { McpConfigEntity } from './mcp-config.entity';
 
 @Injectable()
 export class McpConfigsService implements OnModuleInit {
-  private readonly items = new Map<string, McpConfig>();
+  constructor(
+    @InjectRepository(McpConfigEntity)
+    private readonly mcpConfigRepository: Repository<McpConfigEntity>,
+  ) {}
 
-  onModuleInit(): void {
-    if (this.items.size > 0) return;
-    this.create({
+  async onModuleInit(): Promise<void> {
+    const count = await this.mcpConfigRepository.count();
+    if (count > 0) return;
+    await this.create({
       name: '示例 MCP',
       description: '占位',
       transportJson: '{"type":"stdio","placeholder":true}',
     });
   }
 
-  list(): McpConfig[] {
-    return [...this.items.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+  async list(): Promise<McpConfig[]> {
+    return this.mcpConfigRepository.find({
+      order: { updatedAt: 'DESC' },
+    });
   }
 
-  get(id: string): McpConfig | undefined {
-    return this.items.get(id);
+  async get(id: string): Promise<McpConfig | undefined> {
+    const config = await this.mcpConfigRepository.findOneBy({ id });
+    return config ?? undefined;
   }
 
-  create(dto: CreateMcpConfigDto): McpConfig {
-    const now = new Date().toISOString();
-    const row: McpConfig = {
-      id: randomUUID(),
+  async create(dto: CreateMcpConfigDto): Promise<McpConfig> {
+    const mcpConfig = this.mcpConfigRepository.create({
       name: dto.name,
       description: dto.description ?? '',
       transportJson: dto.transportJson ?? '{}',
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.items.set(row.id, row);
-    return row;
+    });
+    return this.mcpConfigRepository.save(mcpConfig);
   }
 
-  update(id: string, dto: UpdateMcpConfigDto): McpConfig {
-    const cur = this.items.get(id);
+  async update(id: string, dto: UpdateMcpConfigDto): Promise<McpConfig> {
+    const cur = await this.get(id);
     if (!cur) {
       throw new NotFoundException(`MCP config ${id} not found`);
     }
-    const next: McpConfig = {
-      ...cur,
-      ...dto,
-      updatedAt: new Date().toISOString(),
-    };
-    this.items.set(id, next);
-    return next;
+
+    Object.assign(cur, {
+      name: dto.name ?? cur.name,
+      description: dto.description ?? cur.description,
+      transportJson: dto.transportJson ?? cur.transportJson,
+    });
+
+    return this.mcpConfigRepository.save(cur);
   }
 
-  remove(id: string): void {
-    if (!this.items.has(id)) {
+  async remove(id: string): Promise<void> {
+    const result = await this.mcpConfigRepository.delete(id);
+    if (result.affected === 0) {
       throw new NotFoundException(`MCP config ${id} not found`);
     }
-    this.items.delete(id);
   }
 }
