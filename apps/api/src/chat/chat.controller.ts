@@ -153,7 +153,9 @@ export class ChatController {
 <|FunctionCallEnd|>
 ⚠️ 重要规则：
 - name字段直接填工具名称（如send_email、get_recent_emails等），不要填MCP服务名
-- parameters里直接放工具需要的参数，不要加额外的action字段
+- parameters里严格使用工具定义的参数名，不要自己发明参数：
+  * 发送邮件send_email工具，正文用text字段，不要用content
+- 不要加额外的action字段
 - 不要传入值为空的参数，不需要的参数不要写
 7. 调用工具后，我会返回工具执行结果，你再根据结果继续处理
 8. 完成所有必要操作后，再整合结果给出最终回答

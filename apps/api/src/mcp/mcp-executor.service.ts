@@ -144,11 +144,7 @@ export class McpExecutorService {
           }
         });
 
-        // 兼容邮件MCP的参数字段名：content → text
-        if (toolName === 'send_email' && toolParams.content && !toolParams.text) {
-          toolParams.text = toolParams.content;
-          delete toolParams.content;
-        }
+
 
         console.log(`[MCP调用] 工具名: ${toolName}, 参数:`, toolParams);
 
