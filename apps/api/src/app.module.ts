@@ -11,6 +11,7 @@ import { KnowledgeBasesModule } from './knowledge-bases/knowledge-bases.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { McpConfigsModule } from './mcp-configs/mcp-configs.module';
 import { SkillsModule } from './skills/skills.module';
+import { ModelConfigsModule } from './model-configs/model-configs.module';
 
 @Module({
   imports: [

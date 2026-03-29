@@ -4,8 +4,10 @@ import OpenAI from 'openai';
 import { AgentsService } from '../agents/agents.service';
 import { SkillsService } from '../skills/skills.service';
 import { McpConfigsService } from '../mcp-configs/mcp-configs.service';
+import type { McpConfig } from '../mcp-configs/mcp-configs.types';
 import { KnowledgeBasesService } from '../knowledge-bases/knowledge-bases.service';
 import { McpExecutorService } from '../mcp/mcp-executor.service';
+import { ModelConfigsService } from '../model-configs/model-configs.service';
 import type { ChatStreamBody } from './chat.types';
 
 function sseWrite(res: Response, event: string, data: unknown): void {
@@ -20,6 +22,7 @@ export class ChatController {
     private readonly mcpConfigs: McpConfigsService,
     private readonly knowledgeBases: KnowledgeBasesService,
     private readonly mcpExecutor: McpExecutorService,
+    private readonly modelConfigs: ModelConfigsService,
   ) {}
 
   /**
@@ -38,6 +41,13 @@ export class ChatController {
       return;
     }
 
+    // 获取关联的大模型配置
+    const modelConfig = await this.modelConfigs.get(agent.modelId);
+    if (!modelConfig) {
+      res.status(404).json({ message: `Agent 关联的大模型配置不存在` });
+      return;
+    }
+
     const mode = body.mode ?? 'production';
     const messages = body.messages ?? [];
     res.status(200);
@@ -48,12 +58,16 @@ export class ChatController {
     sseWrite(res, 'meta', {
       agentId: agent.id,
       mode,
-      model: agent.model,
+      model: {
+        provider: modelConfig.provider,
+        model: modelConfig.model,
+        temperature: modelConfig.temperature,
+      },
     });
 
     try {
-      const apiKey = agent.model.apiKey;
-      const baseURL = agent.model.baseUrl;
+      const apiKey = modelConfig.apiKey;
+      const baseURL = modelConfig.baseUrl;
 
       if (!baseURL) {
         throw new Error('请配置大模型 API 地址');
@@ -95,10 +109,13 @@ export class ChatController {
             systemPrompt +=
               '\n\n## 可用MCP工具\n你可以调用以下MCP服务来完成任务：\n' +
               validMcpConfigs
-                .map(
-                  (mcp) =>
-                    `- ${mcp?.name}: ${mcp?.description}\n  配置信息：${mcp?.transportJson}`,
-                )
+                .map((mcp) => {
+                  let toolsInfo = '';
+                  if (mcp?.enabledTools && mcp.enabledTools.length > 0) {
+                    toolsInfo = `\n  可用工具：${mcp.enabledTools.join('、')}`;
+                  }
+                  return `- ${mcp?.name}: ${mcp?.description}${toolsInfo}`;
+                })
                 .join('\n');
           }
         }
@@ -158,7 +175,8 @@ export class ChatController {
 - 不要加额外的action字段
 - 不要传入值为空的参数，不需要的参数不要写
 7. 调用工具后，我会返回工具执行结果，你再根据结果继续处理
-8. 完成所有必要操作后，再整合结果给出最终回答
+8. 所有关于日期、星期、时间、天气、实时信息的问题，必须先调用 tavily_search 工具查询，禁止直接回答
+9. 完成所有必要操作后，再整合结果给出最终回答
 
 ## 当前用户问题
 用户最新请求：${messages[messages.length - 1]?.content || ''}
@@ -176,31 +194,39 @@ export class ChatController {
         maxRounds--;
 
         console.log(
-          `[LLM Request] Agent: ${agent.name} (${agent.id}), Round ${4 - maxRounds}, Messages:`,
+          `[LLM Request] Agent: ${agent.name} (${agent.id}), Provider: ${modelConfig.provider}, Model: ${modelConfig.model}, Round ${4 - maxRounds}, Messages:`,
           currentMessages,
         );
 
-        const stream = await openai.chat.completions.create({
-          model: agent.model.model,
-          temperature: agent.model.temperature ?? 0.2,
-          messages: [
-            { role: 'system', content: await buildSystemPrompt() },
+        // 构建请求参数并打印
+          const messages = [
+            { role: 'system' as const, content: await buildSystemPrompt() },
             ...currentMessages,
-          ],
-          stream: true,
-        });
+          ] as any;
+          console.log(`
+[LLM 完整请求参数]
+模型: ${modelConfig.model}
+温度: ${modelConfig.temperature ?? 0.2}
+消息列表:
+${JSON.stringify(messages, null, 2)}
+`);
+          
+          const stream = await openai.chat.completions.create({
+            model: modelConfig.model,
+            temperature: modelConfig.temperature ?? 0.2,
+            messages,
+            stream: true
+          });
 
         let fullResponse = '';
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content || '';
-          if (text) {
-            fullResponse += text;
-            // 如果是第一轮，直接输出给用户
-            if (maxRounds === 2) {
+          for await (const chunk of stream) {
+            const text = chunk.choices[0]?.delta?.content || '';
+            if (text) {
+              fullResponse += text;
+              // 所有轮次的内容都输出给用户，包括工具调用指令和最终回答
               sseWrite(res, 'token', { text });
             }
           }
-        }
 
         console.log(
           `[LLM Response] Agent: ${agent.name} (${agent.id}), Round ${4 - maxRounds} Output:\n${fullResponse}\n`,
@@ -219,14 +245,23 @@ export class ChatController {
           text: `\n\n🔧 正在调用工具: ${functionCall.name}...\n`,
         });
 
-        // 找到对应的MCP配置
-          const mcpConfigs = (await Promise.all(agent.mcpConfigIds.map((id) => this.mcpConfigs.get(id)))).filter(Boolean);
-          const mcpConfig = mcpConfigs[0]; // 暂时用第一个MCP，后续可扩展匹配逻辑
+        // 遍历所有关联的MCP，找到第一个启用了该工具的配置
+          const allMcpConfigs = (await Promise.all(agent.mcpConfigIds.map((id) => this.mcpConfigs.get(id)))).filter(Boolean) as McpConfig[];
+          let mcpConfig: McpConfig | null = null;
 
-        if (!mcpConfig) {
-          sseWrite(res, 'token', { text: '❌ 未找到对应的MCP配置\n' });
-          break;
-        }
+          for (const config of allMcpConfigs) {
+            // 检查工具是否在该MCP的启用列表里，列表为空表示不限制
+            if (!config.enabledTools || config.enabledTools.length === 0 || config.enabledTools.includes(functionCall.name)) {
+              mcpConfig = config;
+              break;
+            }
+          }
+
+          if (!mcpConfig) {
+            const allEnabledTools = allMcpConfigs.flatMap(c => c.enabledTools || []).join('、');
+            sseWrite(res, 'token', { text: `❌ 未找到支持该工具的MCP配置，所有启用的工具：${allEnabledTools || '无'}\n` });
+            break;
+          }
 
         // 执行MCP调用
         const result = await this.mcpExecutor.execute(mcpConfig, functionCall);

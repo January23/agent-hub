@@ -1,5 +1,4 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import type { AgentModelConfig } from './agents.types';
 
 @Entity()
 export class Agent {
@@ -27,8 +26,8 @@ export class Agent {
   @Column('simple-array', { default: [] })
   linkedAgentIds: string[];
 
-  @Column('jsonb')
-  model: AgentModelConfig;
+  @Column()
+  modelId: string; // 关联大模型配置ID
 
   @Column({ default: false })
   published: boolean;
@@ -36,6 +35,7 @@ export class Agent {
   @Column({ type: 'timestamp', nullable: true })
   publishedAt: string | null;
 
+  /** 预留：内网登录主体，来自 x-agent-hub-user 等 */
   @Column({ type: 'varchar', nullable: true })
   ownerSubject: string | null;
 

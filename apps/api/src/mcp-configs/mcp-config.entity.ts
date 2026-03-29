@@ -15,6 +15,9 @@ export class McpConfigEntity implements McpConfig {
   @Column({ default: '{}' })
   transportJson: string;
 
+  @Column('simple-array', { default: [] })
+  enabledTools: string[]; // 已启用的工具列表，如["send_email", "get_recent_emails"]
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: string;
 

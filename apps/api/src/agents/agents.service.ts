@@ -3,21 +3,48 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Agent } from './agent.entity';
 import type { CreateAgentDto, UpdateAgentDto } from './agents.types';
-
-const defaultModel = (): Agent['model'] => ({
-  provider: 'openai-compatible',
-  model: 'gpt-4o-mini',
-  temperature: 0.2,
-});
+import { ModelConfigsService } from '../model-configs/model-configs.service';
 
 @Injectable()
 export class AgentsService implements OnModuleInit {
   constructor(
     @InjectRepository(Agent)
     private readonly agentRepository: Repository<Agent>,
+    private readonly modelConfigsService: ModelConfigsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
+    // 1. 确保有至少一个大模型配置
+    let modelConfigs = await this.modelConfigsService.list();
+    if (modelConfigs.length === 0) {
+      // 创建默认大模型配置
+      const defaultModel = await this.modelConfigsService.create({
+        name: '默认大模型',
+        provider: 'openai-compatible',
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        apiKey: 'sk-xxx',
+        baseUrl: 'https://api.openai.com/v1',
+        description: '系统默认大模型配置',
+      });
+      modelConfigs = [defaultModel];
+    }
+    const defaultModelId = modelConfigs[0].id;
+
+    // 2. 迁移旧Agent数据：modelId为空的设置为默认大模型
+    const agentsWithoutModel = await this.agentRepository.createQueryBuilder('agent')
+      .where('agent.modelId IS NULL')
+      .getMany();
+    if (agentsWithoutModel.length > 0) {
+      console.log(`[数据迁移] 发现 ${agentsWithoutModel.length} 个Agent缺少modelId，正在迁移...`);
+      for (const agent of agentsWithoutModel) {
+        agent.modelId = defaultModelId;
+        await this.agentRepository.save(agent);
+      }
+      console.log(`[数据迁移] 完成，已将这些Agent关联到默认大模型: ${defaultModelId}`);
+    }
+
+    // 3. 初始化示例Agent
     const count = await this.agentRepository.count();
     if (count > 0) return;
 
@@ -30,7 +57,7 @@ export class AgentsService implements OnModuleInit {
       mcpConfigIds: [],
       knowledgeBaseIds: [],
       linkedAgentIds: [],
-      model: defaultModel(),
+      modelId: defaultModelId,
       published: true,
       publishedAt: now,
       ownerSubject: null,
@@ -60,7 +87,7 @@ export class AgentsService implements OnModuleInit {
       mcpConfigIds: dto.mcpConfigIds ?? [],
       knowledgeBaseIds: dto.knowledgeBaseIds ?? [],
       linkedAgentIds: dto.linkedAgentIds ?? [],
-      model: { ...defaultModel(), ...dto.model },
+      modelId: dto.modelId,
       published: false,
       publishedAt: null,
       ownerSubject,
@@ -82,7 +109,7 @@ export class AgentsService implements OnModuleInit {
       mcpConfigIds: dto.mcpConfigIds ?? cur.mcpConfigIds,
       knowledgeBaseIds: dto.knowledgeBaseIds ?? cur.knowledgeBaseIds,
       linkedAgentIds: dto.linkedAgentIds ?? cur.linkedAgentIds,
-      model: dto.model ? { ...cur.model, ...dto.model } : cur.model,
+      modelId: dto.modelId ?? cur.modelId,
     });
 
     return this.agentRepository.save(cur);

@@ -41,6 +41,7 @@ export class McpConfigsService implements OnModuleInit {
       name: dto.name,
       description: dto.description ?? '',
       transportJson: dto.transportJson ?? '{}',
+      enabledTools: dto.enabledTools ?? [],
     });
     return this.mcpConfigRepository.save(mcpConfig);
   }
@@ -55,6 +56,7 @@ export class McpConfigsService implements OnModuleInit {
       name: dto.name ?? cur.name,
       description: dto.description ?? cur.description,
       transportJson: dto.transportJson ?? cur.transportJson,
+      enabledTools: dto.enabledTools ?? cur.enabledTools,
     });
 
     return this.mcpConfigRepository.save(cur);

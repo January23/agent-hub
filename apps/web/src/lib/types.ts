@@ -3,6 +3,7 @@ export type AgentEditorCatalog = {
   mcpConfigs: { id: string; name: string; description: string }[];
   knowledgeBases: { id: string; name: string; description: string }[];
   agents: { id: string; name: string; published: boolean }[];
+  modelConfigs: { id: string; name: string; description: string }[];
 };
 
 export type AgentDTO = {
@@ -14,7 +15,7 @@ export type AgentDTO = {
   mcpConfigIds: string[];
   knowledgeBaseIds: string[];
   linkedAgentIds: string[];
-  model: { provider: string; model: string; temperature?: number };
+  modelId: string;
   published: boolean;
   publishedAt: string | null;
   ownerSubject: string | null;

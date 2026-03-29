@@ -11,6 +11,7 @@ type Row = {
   name: string;
   description: string;
   transportJson: string;
+  enabledTools: string[];
   updatedAt: string;
 };
 
@@ -26,7 +27,10 @@ export default function McpConfigsPage() {
   useEffect(() => {
     if (open) {
       if (editing) {
-        form.setFieldsValue(editing);
+        form.setFieldsValue({
+          ...editing,
+          enabledTools: editing.enabledTools?.join('\n') || '',
+        });
       } else {
         form.resetFields();
       }
@@ -65,11 +69,22 @@ export default function McpConfigsPage() {
   async function submit() {
     const v = await form.validateFields();
     try {
+      // 转换工具列表：换行分隔的字符串转数组，过滤空值
+      const enabledTools = (v.enabledTools || '')
+        .split('\n')
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      
+      const payload = {
+        ...v,
+        enabledTools,
+      };
+
       if (editing) {
         const res = await fetch(`${getApiBase()}/mcp-configs/${editing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(v),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(String(res.status));
         message.success("已保存");
@@ -77,7 +92,7 @@ export default function McpConfigsPage() {
         const res = await fetch(`${getApiBase()}/mcp-configs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(v),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error(String(res.status));
         message.success("已创建");
@@ -155,7 +170,19 @@ export default function McpConfigsPage() {
             <Input />
           </Form.Item>
           <Form.Item name="transportJson" label="Transport JSON">
-            <Input.TextArea rows={12} />
+            <Input.TextArea rows={8} />
+          </Form.Item>
+          <Form.Item 
+            name="enabledTools" 
+            label="已启用工具列表" 
+            tooltip="每行填写一个工具名，如send_email、get_recent_emails，留空表示不限制"
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="send_email
+get_recent_emails
+get_email_content" 
+            />
           </Form.Item>
         </Form>
       </Drawer>

@@ -8,6 +8,7 @@ import {
   RobotOutlined,
   ShopOutlined,
   ToolOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
 import { App, ConfigProvider, Layout, Menu, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
@@ -27,6 +28,8 @@ function menuKeyFromPath(pathname: string): string {
       return "/skills";
     case "mcp-configs":
       return "/mcp-configs";
+    case "model-configs":
+      return "/model-configs";
     case "knowledge-bases":
       return "/knowledge-bases";
     case "marketplace":
@@ -46,6 +49,11 @@ const menuItems = [
     key: "/mcp-configs",
     icon: <CloudServerOutlined />,
     label: <Link href="/mcp-configs">MCP</Link>,
+  },
+  {
+    key: "/model-configs",
+    icon: <ApiOutlined />,
+    label: <Link href="/model-configs">大模型</Link>,
   },
   {
     key: "/knowledge-bases",

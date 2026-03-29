@@ -77,7 +77,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         mcpConfigIds: agent.mcpConfigIds,
         knowledgeBaseIds: agent.knowledgeBaseIds,
         linkedAgentIds: agent.linkedAgentIds,
-        model: agent.model,
+        modelId: agent.modelId,
       });
     }
   }, [bootLoading, agent, form]);
@@ -103,6 +103,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         value: a.id,
       }));
   }, [catalog, agentId]);
+
+  const modelOptions = useMemo(
+    () => catalog?.modelConfigs.map((m) => ({ label: m.name, value: m.id })) ?? [],
+    [catalog],
+  );
 
   async function onSave() {
     const values = await form.validateFields();
@@ -206,7 +211,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           mcpConfigIds: [],
           knowledgeBaseIds: [],
           linkedAgentIds: [],
-          model: { provider: "openai-compatible", model: "gpt-4o-mini", temperature: 0.2, apiKey: "", baseUrl: "" },
+          modelId: "",
           prompt: "你是企业内部助手。",
         }}
       >
@@ -263,20 +268,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         </Form.Item>
 
         <Divider titlePlacement="start">大模型</Divider>
-        <Form.Item name={["model", "provider"]} label="Provider" rules={[{ required: true }]}>
-          <Input placeholder="如 openai-compatible" />
-        </Form.Item>
-        <Form.Item name={["model", "model"]} label="模型名" rules={[{ required: true }]}>
-          <Input placeholder="如 gpt-4o-mini" />
-        </Form.Item>
-        <Form.Item name={["model", "temperature"]} label="温度">
-          <InputNumber min={0} max={2} step={0.1} style={{ width: "100%" }} />
-        </Form.Item>
-        <Form.Item name={["model", "apiKey"]} label="API Key">
-          <Input.Password placeholder="留空则使用全局配置" />
-        </Form.Item>
-        <Form.Item name={["model", "baseUrl"]} label="API 地址">
-          <Input placeholder="如 https://api.openai.com/v1，留空则使用全局配置" />
+        <Form.Item name="modelId" label="选择大模型配置" rules={[{ required: true, message: "请选择大模型配置" }]}>
+          <Select
+            showSearch
+            options={modelOptions}
+            placeholder="选择已配置的大模型"
+            optionFilterProp="label"
+          />
         </Form.Item>
 
         <Space wrap>

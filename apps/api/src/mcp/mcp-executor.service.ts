@@ -148,6 +148,16 @@ export class McpExecutorService {
 
         console.log(`[MCP调用] 工具名: ${toolName}, 参数:`, toolParams);
 
+        // 工具权限校验：仅允许调用已启用的工具
+        if (mcpConfig.enabledTools && mcpConfig.enabledTools.length > 0) {
+          if (!mcpConfig.enabledTools.includes(toolName)) {
+            return {
+              success: false,
+              error: `工具【${toolName}】未被启用，允许使用的工具：${mcpConfig.enabledTools.join('、')}`,
+            };
+          }
+        }
+
         // 调用MCP工具
         const result = await clientInstance.client.callTool({
           name: toolName,

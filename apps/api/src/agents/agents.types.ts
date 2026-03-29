@@ -1,11 +1,3 @@
-export type AgentModelConfig = {
-  provider: string;
-  model: string;
-  temperature?: number;
-  apiKey?: string;
-  baseUrl?: string;
-};
-
 export type Agent = {
   id: string;
   name: string;
@@ -15,7 +7,7 @@ export type Agent = {
   mcpConfigIds: string[];
   knowledgeBaseIds: string[];
   linkedAgentIds: string[];
-  model: AgentModelConfig;
+  modelId: string; // 关联大模型配置ID
   published: boolean;
   publishedAt: string | null;
   /** 预留：内网登录主体，来自 x-agent-hub-user 等 */
@@ -32,7 +24,7 @@ export type CreateAgentDto = {
   mcpConfigIds?: string[];
   knowledgeBaseIds?: string[];
   linkedAgentIds?: string[];
-  model?: Partial<AgentModelConfig>;
+  modelId: string;
 };
 
 export type UpdateAgentDto = Partial<CreateAgentDto>;
