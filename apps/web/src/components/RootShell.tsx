@@ -104,7 +104,7 @@ export function RootShell({ children }: { children: ReactNode }) {
                 borderBottom: "1px solid #f0f0f0",
               }}
             >
-              内网 Agent 市场 · 配置与对话
+              Agent 市场 · 配置与对话
             </Header>
             <Content style={{ margin: 24, maxWidth: 1200 }}>{children}</Content>
           </Layout>

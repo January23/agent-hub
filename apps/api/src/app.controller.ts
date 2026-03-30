@@ -19,7 +19,7 @@ export class AppController {
     return { ok: true };
   }
 
-  /** 预留：对接内网登录后可返回真实用户；当前仅回显可选请求头 */
+  /** 预留：对接登录后可返回真实用户；当前仅回显可选请求头 */
   @Get('auth/me')
   me(
     @RequestIdentity() identity: RequestIdentityPayload,

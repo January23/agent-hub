@@ -10,7 +10,7 @@ export type Agent = {
   modelId: string; // 关联大模型配置ID
   published: boolean;
   publishedAt: string | null;
-  /** 预留：内网登录主体，来自 x-agent-hub-user 等 */
+  /** 预留：登录主体，来自 x-agent-hub-user 等 */
   ownerSubject: string | null;
   createdAt: string;
   updatedAt: string;

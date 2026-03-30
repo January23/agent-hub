@@ -35,7 +35,7 @@ export class Agent {
   @Column({ type: 'timestamp', nullable: true })
   publishedAt: string | null;
 
-  /** 预留：内网登录主体，来自 x-agent-hub-user 等 */
+  /** 预留 登录主体，来自 x-agent-hub-user 等 */
   @Column({ type: 'varchar', nullable: true })
   ownerSubject: string | null;
 

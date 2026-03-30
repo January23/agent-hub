@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Agent Hub",
-  description: "内网 Agent 市场",
+  description: "Agent 市场",
 };
 
 export default function RootLayout({

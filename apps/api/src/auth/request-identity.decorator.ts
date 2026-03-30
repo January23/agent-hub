@@ -1,7 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 
 export type RequestIdentityPayload = {
-  /** 预留：工号、OIDC sub 等；由内网网关注入请求头后读取 */
+  /** 预留：工号、OIDC sub 等；由网关注入请求头后读取 */
   subject: string | null;
 };
 
