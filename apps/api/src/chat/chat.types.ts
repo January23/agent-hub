@@ -6,4 +6,5 @@ export type ChatMessage = {
 export type ChatStreamBody = {
   messages: ChatMessage[];
   mode?: 'debug' | 'production';
+  sessionId?: string;
 };

@@ -4,6 +4,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { McpConfig } from '../mcp-configs/mcp-configs.types';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import JSON5 from 'json5';
 
 export interface FunctionCall {
   name: string;
@@ -27,6 +28,37 @@ export class McpExecutorService {
   private clientCache = new Map<string, { client: Client; process?: ChildProcess }>();
 
   /**
+   * 修复大模型输出的坏 JSON
+   */
+  private fixAndParseJson(input: string): any {
+    try {
+      // 1. 先尝试正常解析
+      return JSON.parse(input);
+    } catch (e) {
+      try {
+        // 2. 尝试用 JSON5 修复（支持单引号、换行、注释）
+        return JSON5.parse(input);
+      } catch (e2) {
+        try {
+          // 3. 终极修复：处理换行、未转义字符
+          let fixed = input
+            .replace(/\n/g, '\\n')         // 真实换行 → \n
+            .replace(/\r/g, '')
+            .replace(/\\n/g, '\\n')        // 统一换行
+            .replace(/'/g, '"')            // 单引号 → 双引号
+            .replace(/,\s*}/g, '}')        // 删除尾逗号
+            .replace(/,\s*]/g, ']');
+
+          return JSON.parse(fixed);
+        } catch (e3) {
+          console.error('JSON 格式无法修复:', e3);
+          throw new Error('JSON 格式无法修复');
+        }
+      }
+    }
+  }
+
+  /**
    * 解析大模型返回的函数调用指令
    */
   parseFunctionCall(content: string): FunctionCall | null {
@@ -34,6 +66,7 @@ export class McpExecutorService {
     if (!match?.[1]) return null;
 
     try {
+      // const calls = this.fixAndParseJson(match[1].trim());
       const calls = JSON.parse(match[1].trim());
       return Array.isArray(calls) ? calls[0] : calls;
     } catch (e) {

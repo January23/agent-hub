@@ -9,6 +9,7 @@ import type { McpConfig } from '../mcp-configs/mcp-configs.types';
 import { KnowledgeBasesService } from '../knowledge-bases/knowledge-bases.service';
 import { McpExecutorService } from '../mcp/mcp-executor.service';
 import { ModelConfigsService } from '../model-configs/model-configs.service';
+import { ChatSessionService } from './chat-session.service';
 import type { ChatStreamBody } from './chat.types';
 
 function sseWrite(res: Response, event: string, data: unknown): void {
@@ -24,6 +25,7 @@ export class ChatController {
     private readonly knowledgeBases: KnowledgeBasesService,
     private readonly mcpExecutor: McpExecutorService,
     private readonly modelConfigs: ModelConfigsService,
+    private readonly chatSessionService: ChatSessionService,
   ) {}
 
   /**
@@ -50,7 +52,57 @@ export class ChatController {
     }
 
     const mode = body.mode ?? 'production';
-    const messages = body.messages ?? [];
+    const incomingMessages = body.messages ?? [];
+    let sessionId = body.sessionId;
+    
+    // 加载或创建会话
+    let session = sessionId ? this.chatSessionService.get(sessionId) : null;
+    let isNewSession = false;
+    
+    if (!session) {
+      session = this.chatSessionService.create(agentId, incomingMessages);
+      sessionId = session.id;
+      isNewSession = true;
+    } else {
+      // 检查会话所属agent是否匹配
+      if (session.agentId !== agentId) {
+        res.status(400).json({ message: `会话不属于当前Agent` });
+        return;
+      }
+
+      // 检查是否超过15轮对话限制
+      if (session.round >= 15) {
+        res.status(200);
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.setHeader('Connection', 'keep-alive');
+        
+        sseWrite(res, 'meta', {
+          agentId: agent.id,
+          mode,
+          sessionId,
+          model: {
+            provider: modelConfig.provider,
+            model: modelConfig.model,
+            temperature: modelConfig.temperature,
+          },
+        });
+
+        sseWrite(res, 'token', { 
+          text: '⚠️ 当前会话已超过15轮对话限制，请开启新会话继续交流。' 
+        });
+        sseWrite(res, 'done', {});
+        res.end();
+        return;
+      }
+
+      // 追加用户最新消息到会话
+      const latestUserMessage = incomingMessages[incomingMessages.length - 1];
+      if (latestUserMessage?.role === 'user' && sessionId) {
+        this.chatSessionService.appendMessage(sessionId, latestUserMessage);
+      }
+    }
+
     res.status(200);
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -59,6 +111,7 @@ export class ChatController {
     sseWrite(res, 'meta', {
       agentId: agent.id,
       mode,
+      sessionId,
       model: {
         provider: modelConfig.provider,
         model: modelConfig.model,
@@ -129,7 +182,7 @@ export class ChatController {
           const validKnowledgeBases = knowledgeBases.filter(Boolean);
           if (validKnowledgeBases.length > 0) {
             systemPrompt +=
-              '\n\n## 关联知识库\n你可以使用以下知识库的内容来回答问题：\n' +
+              '\n\n## 关联知识库\n你可以使用以下知识库的内容来回答用户问题：\n' +
               validKnowledgeBases
                 .map(
                   (kb) =>
@@ -183,14 +236,14 @@ export class ChatController {
 9. 完成所有必要操作后，再整合结果给出最终回答
 
 ## 当前用户问题
-用户最新请求：${messages[messages.length - 1]?.content || ''}
+用户最新请求：${session.messages[session.messages.length - 1]?.content || ''}
 请根据以上流程和可用资源来处理用户问题。`;
 
         return systemPrompt;
       };
 
       // 多轮调用循环
-      let currentMessages = [...messages];
+      let currentMessages = [...session.messages];
       let fullFinalResponse = '';
       let maxRounds = 3; // 最多3轮工具调用，防止死循环
 
@@ -353,18 +406,26 @@ ${JSON.stringify(messages, null, 2)}
                       timeout: 120000,
                     });
 
-                    // 调用子Agent大模型，包含完整的动态提示词
-                    const agentResponse = await openai.chat.completions.create({
+                    // 调用子Agent大模型，包含完整的动态提示词，使用流式输出
+                    const agentStream = await openai.chat.completions.create({
                       model: agentModelConfig.model,
                       temperature: agentModelConfig.temperature ?? 0.2,
                       messages: [
                         { role: 'system', content: agentSystemPrompt },
                         { role: 'user', content: userQuery },
                       ],
-                      stream: false,
+                      stream: true,
                     });
 
-                    const agentAnswer = agentResponse.choices[0].message.content || '';
+                    let agentAnswer = '';
+                    for await (const chunk of agentStream) {
+                      const text = chunk.choices[0]?.delta?.content || '';
+                      if (text) {
+                        agentAnswer += text;
+                        // 将子Agent的流式输出直接传递给用户
+                        sseWrite(res, 'token', { text });
+                      }
+                    }
                     result = {
                       success: true,
                       data: {
@@ -412,6 +473,15 @@ ${JSON.stringify(messages, null, 2)}
       console.log(
         `[LLM Final Response] Agent: ${agent.name} (${agent.id}), Full Output:\n${fullFinalResponse}\n`,
       );
+
+      // 更新会话，保存最新的对话历史
+      if (fullFinalResponse && sessionId) {
+        currentMessages.push({
+          role: 'assistant',
+          content: fullFinalResponse,
+        });
+        this.chatSessionService.updateMessages(sessionId, currentMessages);
+      }
     } catch (error) {
       console.error(
         `[LLM Error] Agent: ${agent.name} (${agent.id}), Error:`,

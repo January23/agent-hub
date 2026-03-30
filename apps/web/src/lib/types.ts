@@ -22,3 +22,18 @@ export type AgentDTO = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ChatSession = {
+  id: string;
+  name: string;
+  agentId: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+  round: number;
+};
