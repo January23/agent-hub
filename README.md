@@ -2,6 +2,11 @@
 
 智能Agent开发与运行平台，支持动态提示词、MCP工具调用、子Agent编排、知识库等完整能力。
 
+## 示例
+<img width="1511" height="733" alt="image" src="https://github.com/user-attachments/assets/a51db34e-378d-4520-b1fc-6c3430e38538" />
+<img width="1334" height="736" alt="image" src="https://github.com/user-attachments/assets/1232f7fd-342b-48a0-a9f5-c0f1fefa2617" />
+<img width="1334" height="738" alt="image" src="https://github.com/user-attachments/assets/f2119396-47c1-4118-9efa-461bfa96ed49" />
+
 ## ✨ 核心特性
 
 ### 🤖 智能Agent编排
